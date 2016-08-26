@@ -4,7 +4,7 @@ from requests_futures.sessions import FuturesSession
 import json
 import time
 import string
-from traitlets import Unicode, List, Integer
+from traitlets import Unicode, List, Integer, Dict
 
 
 class UnicodeOrFalse(Unicode):
@@ -113,6 +113,18 @@ class KubeSpawner(Spawner):
              '{username} and {userid} are expanded.'
     )
 
+    pod_labels = Dict(
+        {},
+        config=True,
+        help='Extra labels for pod'
+    )
+
+    node_selectors = Dict(
+        {},
+        config=True,
+        help='node selectors for choosing k8s nodes'
+    )
+
     def _expand_user_properties(self, template):
         # Make sure username matches the restrictions for DNS labels
         safe_chars = set(string.ascii_lowercase + string.digits)
@@ -150,9 +162,9 @@ class KubeSpawner(Spawner):
             'kind': 'Pod',
             'metadata': {
                 'name': self.pod_name,
-                'labels': {
+                'labels': dict({
                     'name': self.pod_name
-                }
+                }, **self.pod_labels)
             },
             'spec': {
                 'containers': [
@@ -176,7 +188,8 @@ class KubeSpawner(Spawner):
                         'volumeMounts': self._expand_all(self.volume_mounts) + hack_volume_mounts
                     }
                 ],
-                'volumes': self._expand_all(self.volumes) + hack_volumes
+                'volumes': self._expand_all(self.volumes) + hack_volumes,
+                'nodeSelector': self.node_selectors
             }
         }
 
@@ -283,10 +296,10 @@ class KubeSpawner(Spawner):
     def get_env(self):
         env = super(KubeSpawner, self).get_env()
         env.update(dict(
-                    JPY_USER=self.user.name,
-                    JPY_COOKIE_NAME=self.user.server.cookie_name,
-                    JPY_BASE_URL=self.user.server.base_url,
-                    JPY_HUB_PREFIX=self.hub.server.base_url,
-                    JPY_HUB_API_URL=self._public_hub_api_url()
-                ))
+            JPY_USER=self.user.name,
+            JPY_COOKIE_NAME=self.user.server.cookie_name,
+            JPY_BASE_URL=self.user.server.base_url,
+            JPY_HUB_PREFIX=self.hub.server.base_url,
+            JPY_HUB_API_URL=self._public_hub_api_url()
+        ))
         return env
